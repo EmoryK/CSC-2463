@@ -8,7 +8,7 @@ function setup() {
 
   // Initialize colors in the palette
   colors = [color(255,0,0), color(255,165,0), color(255,255,0), color(0,128,0), 
-            color(0,255,255), color(0,0,255), color(255,0,255), color(165,42,42),
+            color(0,255,255), color(0,0,255), color(255,0,255), color(150,75,0),
             color(255,255,255), color(0,0,0)];
             
   // Draw the color palette
