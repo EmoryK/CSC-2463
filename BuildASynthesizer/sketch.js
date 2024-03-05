@@ -63,6 +63,8 @@ function keyPressed() {
  
   scaleSelect.elt.blur();
 
+  const keyPressedLower = key.toLowerCase();
+
   const keyToScaleIndex = {
     'a': 0,
     's': 1,
@@ -82,6 +84,7 @@ function keyPressed() {
 
 function keyReleased() {
 
+  const keyReleasedLower = key.toLowerCase();
 
   const keyToScaleIndex = {
     'a': 0,
