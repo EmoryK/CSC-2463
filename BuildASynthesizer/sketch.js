@@ -63,17 +63,15 @@ function keyPressed() {
  
   scaleSelect.elt.blur();
 
-  const keyPressedLower = key.toLowerCase();
-
   const keyToScaleIndex = {
-    'a': 0,
-    's': 1,
-    'd': 2,
-    'f': 3,
-    'g': 4,
-    'h': 5,
-    'j': 6,
-    'k': 7  // K maps to the eighth note in the scale
+    'a': 0, 'A': 0,
+    's': 1, 'S': 1,
+    'd': 2, 'D': 2,
+    'f': 3, 'F': 3,
+    'g': 4, 'G': 4,
+    'h': 5, 'H': 5,
+    'j': 6, 'J': 6,
+    'k': 7, 'K': 7 
   };
 
   if (keyToScaleIndex.hasOwnProperty(key)) {
@@ -84,17 +82,16 @@ function keyPressed() {
 
 function keyReleased() {
 
-  const keyReleasedLower = key.toLowerCase();
 
   const keyToScaleIndex = {
-    'a': 0,
-    's': 1,
-    'd': 2,
-    'f': 3,
-    'g': 4,
-    'h': 5,
-    'j': 6,
-    'k': 7
+    'a': 0, 'A': 0,
+    's': 1, 'S': 1,
+    'd': 2, 'D': 2,
+    'f': 3, 'F': 3,
+    'g': 4, 'G': 4,
+    'h': 5, 'H': 5,
+    'j': 6, 'J': 6,
+    'k': 7, 'K': 7
   };
 
   if (keyToScaleIndex.hasOwnProperty(key)) {
