@@ -88,7 +88,6 @@ function resetSketch() {
   background(220); // Resets the background
   textSize(24);
   text("Click the canvas to dive in!", 10, 30);
-  // Here, reinitialize or reset any other elements as needed
 }
 
 
