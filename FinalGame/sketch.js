@@ -5,6 +5,12 @@ let gameState = "start"; // Can be "playing", "win", or "lose"
 
 let isHiding = false; // Track whether the player is hiding
 
+let startButton;
+
+function preload() {
+  // Preload the button image
+  startButtonImg = loadImage('assets/StartButton.png');
+}
 // Ensure Tone.js is ready
 function startAudio() {
   Tone.start();
@@ -203,13 +209,13 @@ async function playJumpScareSound() {
 
 
 function drawStartScreen() {
-  background(50); // Set a background color for the start screen
+  background(5); // Set a background color for the start screen
   fill(255);
   textSize(48);
   textAlign(CENTER, CENTER);
-  text("Shadows Under the Bed", width / 2, height / 3); // Game title
+ // text("Shadows Under the Bed", width / 2, height / 3); // Game title
+  
   textSize(24);
-  text("Press 'S' to Start", width / 2, height / 2); // Start instruction
 }
 
 
@@ -279,6 +285,18 @@ function setup() {
   //drawSprites();
   player = new Sprite(this.canvas.w / 2, this.canvas.h - 50 , 50, 50);
 
+  startButton = new Sprite();
+	startButton.img = 'assets/StartButton.png';
+  startButton.scale = canvas.w/500;
+  startButton.x = canvas.w/3
+  startButton.y = canvas.h/1.5
+
+  title = new Sprite();
+	title.img = 'assets/Title.png';
+  title.scale = canvas.w/5000;
+  title.x = canvas.w/2
+  title.y = canvas.h/3
+
   coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
   // Attach an event listener to the window object to start audio on the first user interaction
   window.addEventListener('click', ensureAudioStarts);
@@ -293,6 +311,7 @@ function draw() {
       break;
     case "playing":
       // Update game elements and check for game events
+      startButton.remove();
       drawPlayingScreen();
       //handlePlayerInput();
       //updateMonsters();
@@ -315,10 +334,6 @@ function handlePlayerInput() {
 }
 
 function keyPressed() {
-  if (gameState === "start" && key.toUpperCase() === 'S') {
-    console.log("Starting the game...");
-    startGame();
-  }
   if (key === 'H' || key === 'h') {
     isHiding = true; // Player hides when 'H' is pressed
     console.log("Hiding under covers");
@@ -331,6 +346,12 @@ function keyReleased() {
   }
 }
 
+function mousePressed() {
+  // Check if mouse is over the button and the button is pressed
+  if (startButton.mouse.presses()) {
+    startGame(); // Call the function to start the game
+  }
+}
 
 function displayWinScreen() {
   fill(255);
