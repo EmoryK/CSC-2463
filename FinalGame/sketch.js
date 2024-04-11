@@ -1,6 +1,9 @@
 let player; // Represents the child in bed
+let coverMonster; // Represents the monster you need to hide from
 let monsters = []; // Array to hold monster sprites
-let gameState = "playing"; // Can be "playing", "win", or "lose"
+let gameState = "start"; // Can be "playing", "win", or "lose"
+
+let isHiding = false; // Track whether the player is hiding
 
 // Ensure Tone.js is ready
 function startAudio() {
@@ -125,8 +128,6 @@ function startAudio() {
   ambientLoop.start("+0.5"); // Immediate start with a slight lead-in for initiation clarity
 }
 
-
-
 function ensureAudioStarts() {
   Tone.start().then(() => {
     console.log("Audio context started");
@@ -139,27 +140,163 @@ function ensureAudioStarts() {
   }).catch(err => console.error("Error starting audio context:", err));
 }
 
+async function playJumpScareSound() {
+  await Tone.start(); // Make sure Tone.js audio context is initialized
+
+  // Adding a reverb for spatial depth
+  const reverb = new Tone.Reverb({
+    decay: 2,
+    wet: 0.6
+  }).toDestination();
+
+  // Create a synth for a dissonant tone with added pitch modulation
+  const synth = new Tone.Synth({
+    oscillator: {
+      type: 'sawtooth'
+    },
+    envelope: {
+      attack: 0.01,
+      decay: 0.1,
+      sustain: 0.1,
+      release: 0.2
+    }
+  }).connect(reverb);
+
+  // Pitch modulation to add an eerie wobble
+  const vibrato = new Tone.Vibrato({
+    maxDelay: 0.005,
+    frequency: 5,
+    depth: 0.1,
+    type: 'sine'
+  }).toDestination();
+  synth.connect(vibrato);
+
+  // Create a noise source for an unsettling effect
+  const noise = new Tone.Noise({
+    volume: -7,
+    type: 'pink'
+  }).connect(reverb);
+
+  // More aggressive envelope for the noise for a sudden impact
+  const noiseEnv = new Tone.AmplitudeEnvelope({
+    attack: 0.005,  // Quicker attack for a more startling effect
+    decay: 0.1,
+    sustain: 0.1,
+    release: 0.2
+  }).toDestination();
+  noise.connect(noiseEnv);
+
+  // Play the dissonant tone and noise
+  synth.volume.value = -10; // Adjust volume to suitable levels
+  synth.triggerAttackRelease("C4", "8n"); // Dissonant note, short duration for shock
+  noise.start();
+  noiseEnv.triggerAttackRelease("8n"); // Match duration of the synth for synchronized impact
+
+  // Optionally, stop the noise after the sound has played to clean up
+  setTimeout(() => {
+    noise.stop();
+    vibrato.stop();
+  }, 500); // Stop the noise shortly after it plays
+}
+
+
+
+
+function drawStartScreen() {
+  background(50); // Set a background color for the start screen
+  fill(255);
+  textSize(48);
+  textAlign(CENTER, CENTER);
+  text("Shadows Under the Bed", width / 2, height / 3); // Game title
+  textSize(24);
+  text("Press 'S' to Start", width / 2, height / 2); // Start instruction
+}
+
+
+function startGame() {
+  gameState = "playing"; // Change game state to start the game
+  // Additional setup if needed when starting the game
+}
+
+function drawPlayingScreen() {
+  background(0); // Dark background for a horror theme
+  fill(255);
+  textSize(48);
+  textAlign(CENTER, CENTER);
+  text("PLAYING", width / 2, height / 3);
+  // Display any static elements of the room or environment here
+  // Update and display monsters
+  updateMonsters();
+  checkMonsterInteraction();
+  // Implement any additional game logic specific to the playing state
+  //checkGameState(); // Check for win/lose conditions or other state transitions
+}
+
+
+
+function updateMonsters() {
+    // Example logic to move the monster across the screen
+    //coverMonster.vel.x = 1;
+    if (coverMonster.x < 0) {
+      if (random(100) < .1) { // Random chance to start moving
+          coverMonster.x = 0;
+          coverMonster.vel.x = 2; // Adjust speed as needed
+      }
+  } else if (coverMonster.x > canvas.w) {
+      // Reset monster position after it moves off-screen
+      coverMonster.x = -100;
+      coverMonster.vel.x = 0;
+  }
+}
+
+function drawMonsters() {
+  // Placeholder for monster rendering logic
+  // Loop through your monsters array and draw each monster
+  // Example: monsters.forEach(monster => { drawSprite(monster); });
+  
+}
+
+function checkMonsterInteraction() {
+  // Check if the monster is close to the player
+  if (coverMonster.x > canvas.w / 2 && coverMonster.x < canvas.w / 2 + 100) {
+      if (!isHiding) {
+          // Player caught by the monster
+          playJumpScareSound();
+          gameState = "lose";
+          console.log("Caught by the monster!");
+      }
+  }
+}
+function drawSprites(){
+  player = new Sprite(this.canvas.w / 2, this.canvas.h - 50 , 50, 50);
+  
+  coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
+}
+
 function setup() {
-  createCanvas(windowWidth, windowHeight);
+  new Canvas();
 
-  // Initialize player sprite here
-  player = createSprite(width / 2, height - 50, 50, 50); // Example player sprite
+  //drawSprites();
+  player = new Sprite(this.canvas.w / 2, this.canvas.h - 50 , 50, 50);
 
+  coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
   // Attach an event listener to the window object to start audio on the first user interaction
   window.addEventListener('click', ensureAudioStarts);
   window.addEventListener('keydown', ensureAudioStarts);
 }
 
 function draw() {
-  background(0); // Dark background for the horror theme
-  
   // Game state management
   switch (gameState) {
+    case "start":
+      drawStartScreen();
+      break;
     case "playing":
       // Update game elements and check for game events
-      handlePlayerInput();
-      updateMonsters();
-      drawSprites(); // This will draw all sprites, including the player and monsters
+      drawPlayingScreen();
+      //handlePlayerInput();
+      //updateMonsters();
+      //checkMonsterInteraction();
       break;
     case "win":
       displayWinScreen();
@@ -177,19 +314,33 @@ function handlePlayerInput() {
   // Add more controls as needed
 }
 
-function updateMonsters() {
-  // Logic to handle monsters' behavior
+function keyPressed() {
+  if (gameState === "start" && key.toUpperCase() === 'S') {
+    console.log("Starting the game...");
+    startGame();
+  }
+  if (key === 'H' || key === 'h') {
+    isHiding = true; // Player hides when 'H' is pressed
+    console.log("Hiding under covers");
+  }
 }
+
+function keyReleased() {
+  if (key === 'H' || key === 'h') {
+      isHiding = false; // Player stops hiding when 'H' is released
+  }
+}
+
 
 function displayWinScreen() {
   fill(255);
   textSize(32);
-  text("You've survived the night!", 100, height / 2);
+  text("You've survived the night!", 200, height / 2);
 }
 
 function displayLoseScreen() {
   fill(255);
   textSize(32);
-  text("Caught by the monster...", 100, height / 2);
+  text("Caught by the monster...", 200, height / 2);
 }
 
