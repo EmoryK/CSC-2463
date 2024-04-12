@@ -213,7 +213,7 @@ async function playJumpScareSound() {
 
 
 function drawStartScreen() {
-  background(3); // Set a background color for the start screen
+  background(0); // Set a background color for the start screen
   fill(255);
   textSize(48);
   textAlign(CENTER, CENTER);
@@ -230,7 +230,7 @@ function startGame() {
 }
 
 function drawPlayingScreen() {
-  background(10); // Dark background for a horror theme
+  background(0); // Dark background for a horror theme
   fill(255);
   textSize(20);
   textAlign(CENTER,CENTER);
