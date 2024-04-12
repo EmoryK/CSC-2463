@@ -300,6 +300,7 @@ function checkMonsterInteraction() {
           console.log("Caught by the monster!");
       }
       else{
+        coverMonster.ani.frame = 0;
         coverMonster.ani.stop();
         coverMonster.x = -100;
         spawned = false;
