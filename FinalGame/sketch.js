@@ -14,6 +14,7 @@ function preload() {
   coverMonsterSheet = 'assets/coverMonsterSheet.png';
   startButtonImg = loadImage('assets/StartButton-export.png');
   titleCardImg = loadImage('assets/startScreenHouse.png');
+  lightMonsterImg = loadImage('assets/lightMonster.png ')
 }
 // Ensure Tone.js is ready
 function startAudio() {
@@ -236,6 +237,7 @@ function drawPlayingScreen() {
   textAlign(CENTER,CENTER);
   text("PLAYING", width / 2, height / 3);
   if(!roomDrawn){
+    
     room = new Sprite();
     room.collider = 'none';
     mainRoomImg.resize(canvas.w, canvas.h);
@@ -339,7 +341,11 @@ function setup() {
   title.x = canvas.w/2
   title.y = canvas.h/3
 
- 
+  lightMonster = new Sprite();
+  lightMonster.img = lightMonsterImg;
+  lightMonster.scale = canvas.w/1000
+  lightMonster.x = canvas.w/1.18
+  lightMonster.y = canvas.h/2
   
   
   // Attach an event listener to the window object to start audio on the first user interaction
