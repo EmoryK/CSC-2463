@@ -3,13 +3,17 @@ let coverMonster; // Represents the monster you need to hide from
 let monsters = []; // Array to hold monster sprites
 let gameState = "start"; // Can be "playing", "win", or "lose"
 
+
 let isHiding = false; // Track whether the player is hiding
 
 let startButton;
 
 function preload() {
   // Preload the button image
-  startButtonImg = loadImage('assets/StartButton.png');
+  mainRoomImg = loadImage('assets/MainRoom.png');
+  coverMonsterSheet = 'assets/coverMonsterSheet.png';
+  startButtonImg = loadImage('assets/StartButton-export.png');
+  titleCardImg = loadImage('assets/startScreenHouse.png');
 }
 // Ensure Tone.js is ready
 function startAudio() {
@@ -209,7 +213,7 @@ async function playJumpScareSound() {
 
 
 function drawStartScreen() {
-  background(5); // Set a background color for the start screen
+  background(3); // Set a background color for the start screen
   fill(255);
   textSize(48);
   textAlign(CENTER, CENTER);
@@ -222,14 +226,33 @@ function drawStartScreen() {
 function startGame() {
   gameState = "playing"; // Change game state to start the game
   // Additional setup if needed when starting the game
+  
 }
 
 function drawPlayingScreen() {
-  background(0); // Dark background for a horror theme
+  background(10); // Dark background for a horror theme
   fill(255);
-  textSize(48);
-  textAlign(CENTER, CENTER);
+  textSize(20);
+  textAlign(CENTER,CENTER);
   text("PLAYING", width / 2, height / 3);
+  if(!roomDrawn){
+    room = new Sprite();
+    room.collider = 'none';
+    mainRoomImg.resize(canvas.w, canvas.h);
+    room.img = mainRoomImg;
+
+    coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
+    coverMonster.spriteSheet = coverMonsterSheet;
+    animations = {
+      grow: { frameSize: [64,64], frames: 34},
+    };
+    coverMonster.anis.frameDelay = 8;
+    coverMonster.addAnis(animations);
+    coverMonster.ani.stop();
+  
+    roomDrawn = true;
+  }
+  
   // Display any static elements of the room or environment here
   // Update and display monsters
   updateMonsters();
@@ -238,15 +261,19 @@ function drawPlayingScreen() {
   //checkGameState(); // Check for win/lose conditions or other state transitions
 }
 
-
+let spawned = false;
 
 function updateMonsters() {
     // Example logic to move the monster across the screen
     //coverMonster.vel.x = 1;
     if (coverMonster.x < 0) {
-      if (random(100) < .1) { // Random chance to start moving
-          coverMonster.x = 0;
-          coverMonster.vel.x = 2; // Adjust speed as needed
+      if (random(100) < .1) { // Random chance to spawn
+          coverMonster.x = canvas.w/2;
+          coverMonster.layer
+          coverMonster.changeAni('grow');
+          coverMonster.ani.play();
+          spawned = true;
+          // Adjust speed as needed
       }
   } else if (coverMonster.x > canvas.w) {
       // Reset monster position after it moves off-screen
@@ -264,12 +291,17 @@ function drawMonsters() {
 
 function checkMonsterInteraction() {
   // Check if the monster is close to the player
-  if (coverMonster.x > canvas.w / 2 && coverMonster.x < canvas.w / 2 + 100) {
+  if (coverMonster.ani.frame >= 33 && spawned) {
       if (!isHiding) {
           // Player caught by the monster
+          coverMonster.ani.stop();
           playJumpScareSound();
           gameState = "lose";
           console.log("Caught by the monster!");
+      }
+      else{
+        coverMonster.x = -100;
+        spawned = false;
       }
   }
 }
@@ -278,16 +310,24 @@ function drawSprites(){
   
   coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
 }
+let roomDrawn = false;
 
 function setup() {
   new Canvas();
+  collider = 'none';
 
+  titleCard = new Sprite();
+  titleCard.collider = 'none';
+  titleCardImg.resize(canvas.w, canvas.h);
+  titleCard.img = titleCardImg;
+  
   //drawSprites();
   player = new Sprite(this.canvas.w / 2, this.canvas.h - 50 , 50, 50);
 
+  
   startButton = new Sprite();
-	startButton.img = 'assets/StartButton.png';
-  startButton.scale = canvas.w/500;
+	startButton.img = startButtonImg;
+  startButton.scale = canvas.w/3500;
   startButton.x = canvas.w/3
   startButton.y = canvas.h/1.5
 
@@ -297,7 +337,9 @@ function setup() {
   title.x = canvas.w/2
   title.y = canvas.h/3
 
-  coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
+ 
+  
+  
   // Attach an event listener to the window object to start audio on the first user interaction
   window.addEventListener('click', ensureAudioStarts);
   window.addEventListener('keydown', ensureAudioStarts);
@@ -312,6 +354,8 @@ function draw() {
     case "playing":
       // Update game elements and check for game events
       startButton.remove();
+      title.remove();
+      titleCard.remove();
       drawPlayingScreen();
       //handlePlayerInput();
       //updateMonsters();
@@ -360,6 +404,7 @@ function displayWinScreen() {
 }
 
 function displayLoseScreen() {
+  room.remove();
   fill(255);
   textSize(32);
   text("Caught by the monster...", 200, height / 2);
