@@ -307,7 +307,7 @@ function draw() {
   }
 
   handleJoystickInput(sw);
-  drawCursor(cursorX, cursorY);
+  
 
   switch (currentState) {
     case GameState.START:
@@ -315,6 +315,7 @@ function draw() {
       break;
     case GameState.PLAYING:
       updateAndDisplayGame();
+      drawCursor(cursorX, cursorY);
       break;
     case GameState.GAME_OVER:
       displayGameOverScreen();
