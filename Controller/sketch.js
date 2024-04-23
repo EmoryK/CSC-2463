@@ -74,6 +74,7 @@ let neutralY = 512; // Neutral (center) position of the joystick Y
 
 let cursorX = 200;  // Default starting position X
 let cursorY = 200;  // Default starting position Y
+let startGameButton; 
 
 // Initialize a polyphonic synthesizer with a gentle sound
 const ambientPolySynth = new Tone.PolySynth(Tone.Synth, {
@@ -267,6 +268,9 @@ function setup() {
   connectButton.position(10, 10);
   connectButton.mousePressed(connect);
   
+  startGameButton = createButton("Start Game");
+  startGameButton.position(10, 40);
+  startGameButton.mousePressed(startGame);
   //port.on('data', serialEvent);
 }
 
@@ -330,9 +334,9 @@ function handleMiss() {
 let hitBug = false;
 
 function mousePressed() {
-  hitBug = false;
+  
   if (currentState === GameState.START) {
-    startGame();
+    hitBug = false;
   } else if (currentState === GameState.PLAYING) {
     characters.forEach((character, i) => {
       if (character.isClicked(mouseX, mouseY) && !character.squished) {
@@ -358,6 +362,7 @@ function startGame() {
   });
   currentState = GameState.PLAYING;
   resetGame();
+  startGameButton.hide();
 }
 
 function transitionToGameOver() {
@@ -429,21 +434,25 @@ let lastButtonState = 1;
 
 function handleJoystickInput(buttonState) {
   hitBug = false;  // Reset hitBug at the start of the function
-  
-  if (buttonState === 0 && lastButtonState !== 0 && currentState === GameState.PLAYING) { // Assuming button press is active low
-    characters.forEach(character => {
-      if (character.isClicked(cursorX, cursorY) && !character.squished) {
-        character.squish();
-        score++;
-        bugSpeed += 0.2;
-        port.write('B'); // Trigger the buzzer
-        hitBug = true;  // Set hitBug to true if any character is squished
-        addNewCharacter();
-      }
-    });
+  if (buttonState === 0 && lastButtonState !== 0 ) {
+    if(currentState === GameState.START){
+      startGame()
+    } 
+    else if(currentState === GameState.PLAYING){// Assuming button press is active low
+      characters.forEach(character => {
+        if (character.isClicked(cursorX, cursorY) && !character.squished) {
+          character.squish();
+          score++;
+          bugSpeed += 0.2;
+          port.write('B'); // Trigger the buzzer
+          hitBug = true;  // Set hitBug to true if any character is squished
+          addNewCharacter();
+        }
+      });
 
-    if (!hitBug) {
-      handleMiss(); // If no bug was hit, play the miss sound
+      if (!hitBug) {
+        handleMiss(); // If no bug was hit, play the miss sound
+      }
     }
   }
   lastButtonState = buttonState;
