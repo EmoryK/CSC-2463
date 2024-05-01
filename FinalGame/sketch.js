@@ -1,5 +1,15 @@
+let hours = 12;   // Start time at 12:00:00
+let minutes = 0;
+let seconds = 0;
+let timeSpeed = 1;  // How many seconds pass in-game for each real-world second
+let digits = [];
+let digitSprites = [];
+let colon;
+
 let player; // Represents the child in bed
 let coverMonster; // Represents the monster you need to hide from
+let lightMonsterSprite;
+//let gameClock;
 let monsters = []; // Array to hold monster sprites
 let gameState = "start"; // Can be "playing", "win", or "lose"
 
@@ -8,6 +18,85 @@ let isHiding = false; // Track whether the player is hiding
 
 let startButton;
 
+class Player {
+  constructor(spriteSheet) {
+      this.sprite = new Sprite();
+      this.sprite.spriteSheet = spriteSheet; // sprite sheet
+      this.sprite.scale.x *= canvas.w/512;
+      this.sprite.scale.y *= canvas.h/248;
+      this.sprite.collider = 'none';
+      this.animations = {
+        idle: { frameSize: [512,248], row: 0, frames: 1 },
+        hide: { frameSize: [512,248], row: 0, col: 1, frames: 10 },
+        underCover: { frameSize: [512,248], row: 0, col: 11, frames: 1 },
+        flashlight:{frameSize: [512,248], row: 0, col: 12, frames:  9}
+      };
+      this.isHiding = false;
+      this.sprite.addAnis(this.animations);
+      this.sprite.changeAni('idle');
+  }
+
+  // Display the player on the screen
+  display() {
+      image(this.currentSprite, this.x, this.y, this.width, this.height);
+  }
+
+  // Update the player's status or position
+  update() {
+      // This function can be expanded to handle movement or other logic
+  }
+
+  // Method to handle hiding
+  hide() {
+      this.isHiding = true;
+      this.sprite.changeAni('hide');
+      this.sprite.ani.play(0);
+      this.sprite.ani.noLoop();
+  }
+
+  // Method to stop hiding
+  reset() {
+      this.isHiding = false;
+      this.sprite.changeAni('idle');
+  }
+
+  flash(){
+    this.sprite.changeAni('flashlight');
+    this.sprite.ani.play(0);
+    this.sprite.ani.noLoop();
+  }
+}
+
+class lightMonster {
+  constructor(spriteSheet) {
+      this.sprite = new Sprite();
+      this.sprite.spriteSheet = spriteSheet; // sprite sheet
+      this.sprite.scale.x *= canvas.w/512;
+      this.sprite.scale.y *= canvas.h/248;
+      this.sprite.collider = 'none';
+      this.animations = {
+        idle: { frameSize: [512,248], row: 0, frames: 1 },
+        enter: { frameSize: [512,248], row: 0, col: 0, frames: 8 },
+      };
+      
+      this.sprite.addAnis(this.animations); 
+      this.sprite.changeAni('idle');
+  }
+
+  enter(){
+      this.sprite.changeAni('enter');
+      this.sprite.ani.play(0);
+      this.sprite.ani.noLoop();
+  }
+
+  leave(){
+    this.sprite.changeAni('enter');
+    this.sprite.ani.rewind();
+    this.sprite.ani.noLoop();
+  }
+}
+
+
 function preload() {
   // Preload the button image
   mainRoomImg = loadImage('assets/MainRoom.png');
@@ -15,6 +104,15 @@ function preload() {
   startButtonImg = loadImage('assets/StartButton-export.png');
   titleCardImg = loadImage('assets/startScreenHouse.png');
   lightMonsterImg = loadImage('assets/lightMonster.png ')
+  playerSheet = loadImage('assets/PlayerHidingSprite.png');
+  lightMonsterSheet = loadImage('assets/lightMonsterSheet.png');
+  // Load each digit image
+  for (let i = 0; i <= 9; i++) {
+    digits[i] = loadImage(`assets/digit${i}.png`);
+  }
+  // Load the colon image
+  colon = loadImage('assets/colon.png');
+
 }
 // Ensure Tone.js is ready
 function startAudio() {
@@ -211,7 +309,36 @@ async function playJumpScareSound() {
 }
 
 
+function updateInGameTime() {
+  seconds += timeSpeed; // Increment seconds by the time speed each frame
 
+  if (seconds >= 60) { // Handle minute overflow
+      seconds = 0;
+      minutes++;
+  }
+  if (minutes >= 60) { // Handle hour overflow
+      minutes = 0;
+      hours++;
+  }
+  if (hours >= 13) { // Handle hour overflow
+      hours = 1;
+  }
+  updateDigitSprites();
+}
+
+
+
+function updateDigitSprites() {
+  let h = nf(hours, 2);
+  let m = nf(minutes, 2);
+  //let s = nf(seconds, 2);
+  let timeString = h + m ; // Concatenate the time string
+
+  for (let i = 0; i < 4; i++) {
+      //digitSprites[i].img = timeString.charAt(i);
+      digitSprites[i].img = digits[parseInt(timeString.charAt(i))];
+  }
+}
 
 function drawStartScreen() {
   background(0); // Set a background color for the start screen
@@ -234,6 +361,7 @@ function drawPlayingScreen() {
   background(0); // Dark background for a horror theme
   fill(255);
   textSize(20);
+  
   textAlign(CENTER,CENTER);
   text("PLAYING", width / 2, height / 3);
   if(!roomDrawn){
@@ -242,7 +370,9 @@ function drawPlayingScreen() {
     room.collider = 'none';
     mainRoomImg.resize(canvas.w, canvas.h);
     room.img = mainRoomImg;
-
+    
+    
+    
     coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
     coverMonster.spriteSheet = coverMonsterSheet;
     animations = {
@@ -251,16 +381,48 @@ function drawPlayingScreen() {
     coverMonster.anis.frameDelay = 8;
     coverMonster.addAnis(animations);
     coverMonster.ani.stop();
-  
+    coverMonster.scale.x *= canvas.w/512;
+    coverMonster.scale.y *= canvas.h/248;
+
+    lightMonsterSprite  = new lightMonster(lightMonsterSheet);
+
+    player = new Player(playerSheet);
+
+    let x = canvas.w - 125;
+    const y = 40;
+    for (let i = 0; i < 4; i++) {  // Create six digit sprites for HH:MM:SS
+        digitSprites[i] = new Sprite(x, y, digits[0].width, digits[0].height);
+        digitSprites[i].img = digits[0];
+        digitSprites[i].collision = 'none';
+        digitSprites[i].scale = canvas.w/3000;
+        x += digitSprites[0].width;
+        if (i === 1 || i === 3) {  // Place colon sprites after HH and MM
+            if (i === 1) {
+                colonSprite = new Sprite(x, y, colon.width, colon.height);
+                colonSprite.collision = 'none';
+                colonSprite.img = colon;
+                colonSprite.scale = canvas.w/3000;
+            } /*else {
+                let secondColon = new Sprite(x, y, colon.width, colon.height);
+                secondColon.img = colon;
+                secondColon.scale = canvas.w/3000;
+            }*/
+            x += colonSprite.width;
+        }
+    }
+
     roomDrawn = true;
   }
-  
+
+
+
   // Display any static elements of the room or environment here
   // Update and display monsters
   updateMonsters();
   checkMonsterInteraction();
   // Implement any additional game logic specific to the playing state
   //checkGameState(); // Check for win/lose conditions or other state transitions
+
 }
 
 let spawned = false;
@@ -275,6 +437,8 @@ function updateMonsters() {
           coverMonster.changeAni('grow');
           coverMonster.ani.play();
           spawned = true;
+
+          lightMonsterSprite.enter();
           // Adjust speed as needed
       }
   } else if (coverMonster.x > canvas.w) {
@@ -305,13 +469,13 @@ function checkMonsterInteraction() {
         coverMonster.ani.frame = 0;
         coverMonster.ani.stop();
         coverMonster.x = -100;
+        
+        lightMonsterSprite.leave();
         spawned = false;
       }
   }
 }
 function drawSprites(){
-  player = new Sprite(this.canvas.w / 2, this.canvas.h - 50 , 50, 50);
-  
   coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
 }
 let roomDrawn = false;
@@ -324,10 +488,8 @@ function setup() {
   titleCard.collider = 'none';
   titleCardImg.resize(canvas.w, canvas.h);
   titleCard.img = titleCardImg;
-  
-  //drawSprites();
-  player = new Sprite(this.canvas.w / 2, this.canvas.h - 50 , 50, 50);
 
+  //drawSprites();
   
   startButton = new Sprite();
 	startButton.img = startButtonImg;
@@ -341,13 +503,13 @@ function setup() {
   title.x = canvas.w/2
   title.y = canvas.h/3
 
-  lightMonster = new Sprite();
+  /*lightMonster = new Sprite();
   lightMonster.img = lightMonsterImg;
   lightMonster.scale = canvas.w/1000
   lightMonster.x = canvas.w/1.18
-  lightMonster.y = canvas.h/2
+  lightMonster.y = canvas.h/2*/
   
-  
+
   // Attach an event listener to the window object to start audio on the first user interaction
   window.addEventListener('click', ensureAudioStarts);
   window.addEventListener('keydown', ensureAudioStarts);
@@ -358,6 +520,8 @@ function draw() {
   switch (gameState) {
     case "start":
       drawStartScreen();
+      //updateInGameTime();
+      //displayInGameTime();
       break;
     case "playing":
       // Update game elements and check for game events
@@ -365,6 +529,8 @@ function draw() {
       title.remove();
       titleCard.remove();
       drawPlayingScreen();
+      updateInGameTime();
+      //displayInGameTime();
       //handlePlayerInput();
       //updateMonsters();
       //checkMonsterInteraction();
@@ -386,15 +552,32 @@ function handlePlayerInput() {
 }
 
 function keyPressed() {
+  // Player hides when 'H' is pressed
   if (key === 'H' || key === 'h') {
-    isHiding = true; // Player hides when 'H' is pressed
+    if(!isHiding){
+      player.hide();
+    }
+    isHiding = true;
+    
     console.log("Hiding under covers");
+  }
+  if (key === 'F' || key === 'f') {
+    if(!isHiding){
+      player.flash();
+    }
+    console.log("Flashlight is on");
   }
 }
 
 function keyReleased() {
   if (key === 'H' || key === 'h') {
       isHiding = false; // Player stops hiding when 'H' is released
+      player.reset();
+  }
+  if (key === 'F' || key === 'f') {
+    if(!isHiding){
+    player.reset();
+    }
   }
 }
 
