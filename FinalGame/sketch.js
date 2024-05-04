@@ -1,20 +1,37 @@
+let port;
+
 let hours = 12;   // Start time at 12:00:00
 let minutes = 0;
 let seconds = 0;
+let totalSeconds = 0; // Variable to track total elapsed time in seconds
 let timeSpeed = 1;  // How many seconds pass in-game for each real-world second
 let digits = [];
 let digitSprites = [];
 let colon;
+let roomDrawn = false;
 
+let bubbleSprites = [];
+
+let room;
 let player; // Represents the child in bed
 let coverMonster; // Represents the monster you need to hide from
 let lightMonsterSprite;
+let hideMonsterSprite;
+
+let lightMonsterReady = true; // Flag to control spawning of lightMonster
+let lastCoverMonsterSpawnTime = 0; // Timestamp of last coverMonster spawn
+let lastLightMonsterSpawnTime = 0;
+let lastHideMonsterSpawnTime = 0;
+
+let monsterThatKilled;
+
 //let gameClock;
 let monsters = []; // Array to hold monster sprites
 let gameState = "start"; // Can be "playing", "win", or "lose"
 
 
 let isHiding = false; // Track whether the player is hiding
+let lightOn = false; // Track whether the player has flashlight on
 
 let startButton;
 
@@ -34,6 +51,11 @@ class Player {
       this.isHiding = false;
       this.sprite.addAnis(this.animations);
       this.sprite.changeAni('idle');
+
+      this.isHoldingBreath = false;
+      this.breathCapacity = 100; // Total breath the player can hold
+      this.currentBreath = 100; // Current breath remaining
+      this.breathDecreaseRate = .2; // Rate at which breath decreases per frame
   }
 
   // Display the player on the screen
@@ -54,13 +76,51 @@ class Player {
       this.sprite.ani.noLoop();
   }
 
+  startHoldingBreath() {
+    if (!this.isHoldingBreath && this.currentBreath > 0) {
+        this.isHoldingBreath = true;
+        //this.sprite.changeAni('holdBreath'); // Change animation if exists
+    }
+  }
+
+  stopHoldingBreath() {
+    this.isHoldingBreath = false;
+    this.sprite.changeAni('idle'); // Revert to idle animation
+  }
+
+  updateBreath() {
+    if (this.isHoldingBreath) {
+      this.currentBreath -= this.breathDecreaseRate;
+      if (this.currentBreath <= 0) {
+        this.stopHoldingBreath();
+        this.currentBreath = 0;
+      }
+    } else if (this.currentBreath < this.breathCapacity) {
+      this.currentBreath += this.breathDecreaseRate / 2;  // Regain breath more slowly
+    }
+    this.displayBreath();  // Update the display based on the current breath
+  }
+
+  displayBreath() {
+    let numBubbles = Math.ceil(this.currentBreath / 10);  // Each bubble represents 10 breath units
+    bubbleSprites.forEach((bubble, index) => {
+      if (index < numBubbles) {
+        bubble.visible = true;
+      } else {
+        bubble.visible = false;
+      }
+    });
+  }
+  
   // Method to stop hiding
   reset() {
       this.isHiding = false;
+      this.lightOn = false;
       this.sprite.changeAni('idle');
   }
 
   flash(){
+    this.lightOn = true;
     this.sprite.changeAni('flashlight');
     this.sprite.ani.play(0);
     this.sprite.ani.noLoop();
@@ -95,7 +155,28 @@ class lightMonster {
     this.sprite.ani.noLoop();
   }
 }
+class hideMonster {
+  constructor(spriteSheet) {
+      this.sprite = new Sprite();
+      this.sprite.spriteSheet = spriteSheet; // sprite sheet
+      this.sprite.scale.x *= canvas.w/512;
+      this.sprite.scale.y *= canvas.h/248;
+      this.sprite.collider = 'none';
+      this.animations = {
+        idle: { frameSize: [512,248], row: 0, frames: 1 },
+        enter: { frameSize: [512,248], row: 0, col: 0, frames: 26},
+      };
+      
+      this.sprite.addAnis(this.animations); 
+      this.sprite.changeAni('idle');
+  }
 
+  enter(){
+      this.sprite.changeAni('enter');
+      this.sprite.ani.play(0);
+      this.sprite.ani.noLoop();
+  }
+}
 
 function preload() {
   // Preload the button image
@@ -106,6 +187,13 @@ function preload() {
   lightMonsterImg = loadImage('assets/lightMonster.png ')
   playerSheet = loadImage('assets/PlayerHidingSprite.png');
   lightMonsterSheet = loadImage('assets/lightMonsterSheet.png');
+  hideMonsterSheet = loadImage('assets/HideMonster.png');
+  bubbleImg = loadImage('assets/bubble.png');
+  jumpScare = loadImage('assets/JumpScareCoverMonster.png');
+  jumpScare2 = loadImage('assets/JumpScareLightMonster.png');
+  jumpScare3 = loadImage('assets/JumpScareHideMonster.png');
+  deadScreen = loadImage('assets/DEADpixel.png');
+  confettiSheet = loadImage('assets/Confetti.png');
   // Load each digit image
   for (let i = 0; i <= 9; i++) {
     digits[i] = loadImage(`assets/digit${i}.png`);
@@ -249,6 +337,42 @@ function ensureAudioStarts() {
   }).catch(err => console.error("Error starting audio context:", err));
 }
 
+async function playHideMonsterSound() {
+  await Tone.start();  // Ensure the Tone.js context is ready
+
+  // Use a synth with a frequency modulation for an alien-like sound
+  const fmSynth = new Tone.FMSynth({
+      harmonicity: 8.5,  // Ratio of the frequencies of the modulator to the carrier
+      modulationIndex: 2,  // Depth of the modulation
+      detune: 0,  // Detune in cents
+      oscillator: {
+          type: 'sine'  // Pure tone for the carrier
+      },
+      envelope: {
+          attack: 0.1,
+          decay: 0.2,
+          sustain: 0.1,
+          release: 0.5
+      },
+      modulation: {
+          type: 'square'  // Square wave for a more digital, computer-like sound
+      },
+      modulationEnvelope: {
+          attack: 0.2,
+          decay: 0.3,
+          sustain: 0.2,
+          release: 0.5
+      }
+  }).toDestination();
+
+  const volume = new Tone.Volume(-20).toDestination();  // Lower the volume for subtlety
+  fmSynth.connect(volume);
+
+  const now = Tone.now();
+  fmSynth.triggerAttackRelease("C4", "8n", now);  // Play a note with quick duration
+  fmSynth.triggerAttackRelease("G4", "8n", now + 0.3);  // A second note for more complexity
+}
+
 async function playJumpScareSound() {
   await Tone.start(); // Make sure Tone.js audio context is initialized
 
@@ -307,11 +431,11 @@ async function playJumpScareSound() {
     vibrato.stop();
   }, 500); // Stop the noise shortly after it plays
 }
-
+let passMidnight = false;
 
 function updateInGameTime() {
   seconds += timeSpeed; // Increment seconds by the time speed each frame
-
+  totalSeconds += timeSpeed;
   if (seconds >= 60) { // Handle minute overflow
       seconds = 0;
       minutes++;
@@ -321,6 +445,7 @@ function updateInGameTime() {
       hours++;
   }
   if (hours >= 13) { // Handle hour overflow
+      passMidnight = true;
       hours = 1;
   }
   updateDigitSprites();
@@ -360,19 +485,20 @@ function startGame() {
 function drawPlayingScreen() {
   background(0); // Dark background for a horror theme
   fill(255);
-  textSize(20);
+  /*textSize(20);
   
   textAlign(CENTER,CENTER);
-  text("PLAYING", width / 2, height / 3);
+  text("PLAYING", width / 2, height / 3);*/
   if(!roomDrawn){
-    
+    roomDrawn = true;
+    startButton.remove();
+    title.remove();
+    titleCard.remove();
+    hideMonsterSprite = new hideMonster(hideMonsterSheet);
     room = new Sprite();
     room.collider = 'none';
     mainRoomImg.resize(canvas.w, canvas.h);
     room.img = mainRoomImg;
-    
-    
-    
     coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
     coverMonster.spriteSheet = coverMonsterSheet;
     animations = {
@@ -385,6 +511,7 @@ function drawPlayingScreen() {
     coverMonster.scale.y *= canvas.h/248;
 
     lightMonsterSprite  = new lightMonster(lightMonsterSheet);
+    
 
     player = new Player(playerSheet);
 
@@ -411,78 +538,169 @@ function drawPlayingScreen() {
         }
     }
 
-    roomDrawn = true;
+    let bubX = 20
+    let bubY = canvas.h - 40
+    for (let i = 0; i < 10; i++) {
+      bubbleSprites[i] = new Sprite(bubX, bubY, bubbleImg.width, bubbleImg.height, 'none');
+      bubbleSprites[i].img = bubbleImg;
+      bubbleSprites[i].collision = 'none';
+      bubX += bubbleImg.width -10;
+    }
+    
   }
-
-
-
-  // Display any static elements of the room or environment here
-  // Update and display monsters
-  updateMonsters();
-  checkMonsterInteraction();
-  // Implement any additional game logic specific to the playing state
-  //checkGameState(); // Check for win/lose conditions or other state transitions
 
 }
 
-let spawned = false;
+let coverMonsterSpawned = false;
+let lightMonsterSpawned = false;
+let hideMonsterSpawned = false;
+let monsterSpawnInterval = 20; // seconds - interval between lightMonster considerations
+let lightMonsterDistance = 5;
+let modNum;
 
 function updateMonsters() {
-    // Example logic to move the monster across the screen
-    //coverMonster.vel.x = 1;
-    if (coverMonster.x < 0) {
-      if (random(100) < .1) { // Random chance to spawn
-          coverMonster.x = canvas.w/2;
-          coverMonster.layer
-          coverMonster.changeAni('grow');
-          coverMonster.ani.play();
-          spawned = true;
+  // Handle coverMonster spawning
+  if (!coverMonsterSpawned && (totalSeconds - lastCoverMonsterSpawnTime) > 120) {
+    if(Math.random(200) <= 0.001){
+      spawnCoverMonster();
+    }
+  }
+  if (!hideMonsterSpawned && (totalSeconds - lastCoverMonsterSpawnTime) > 120) {
+    if(Math.random(200) <= 0.0008){
+      spawnHideMonster();
+    }
+  }
 
-          lightMonsterSprite.enter();
-          // Adjust speed as needed
+  // Handle lightMonster spawning and progression
+  if (!lightMonsterSpawned && (totalSeconds - lastLightMonsterSpawnTime) > monsterSpawnInterval) {
+    if(lightMonsterDistance == 5){
+      modNum = Math.floor(Math.random() * (170 - 100 + 1) + 100);
+    }
+    if(totalSeconds%modNum == 0){
+      if(lightMonsterDistance >= 0){
+        port.write("distance:" +lightMonsterDistance);
       }
-  } else if (coverMonster.x > canvas.w) {
-      // Reset monster position after it moves off-screen
-      coverMonster.x = -100;
-      coverMonster.vel.x = 0;
+      lightMonsterDistance--;
+    }
+    if(lightMonsterDistance==0){
+      lightMonsterSprite.enter();
+      lightMonsterSpawned = true;
+      lastLightMonsterSpawnTime = totalSeconds;
+    }
+    //advanceLightMonster();
+  }
+  if(hours>=6 && passMidnight){
+    clearEverything();
+    gameState = "win";
   }
 }
 
-function drawMonsters() {
-  // Placeholder for monster rendering logic
-  // Loop through your monsters array and draw each monster
-  // Example: monsters.forEach(monster => { drawSprite(monster); });
+function spawnCoverMonster() {
+  console.log("Spawning Cover Monster");
+  coverMonster.x = canvas.w / 2;
+  coverMonster.changeAni('grow');
+  coverMonster.ani.play();
+  lastCoverMonsterSpawnTime = totalSeconds;
+  coverMonsterSpawned = true;
+  lightMonsterReady = false; // Temporarily disable lightMonster spawning
+  //setTimeout(() => { lightMonsterReady = true; }, 30000); // 30 seconds delay before lightMonster can spawn again
+}
+function spawnHideMonster() {
+  console.log("Spawning Hide Monster");
+  playHideMonsterSound();
+  setTimeout(() => {
+    hideMonsterSprite.enter();
+    lastHideMonsterSpawnTime = totalSeconds;
+    hideMonsterSpawned = true;
+    console.log("Hide Monster has entered the game");
+}, 5000);  // 10000 milliseconds = 10 seconds
+}
+
+function advanceLightMonster() {
+  if (!lightMonsterSpawned) {
+    modNum = Math.random(100,200);
+    console.log("Light Monster Spawning");
+    lightMonsterSprite.enter();
+    lightMonsterSpawned = true;
+    lastLightMonsterSpawnTime = totalSeconds;
+
+  }
+}
+
+
+
+let lost = false;
+
+function checkMonsterInteraction() {
+  if (coverMonsterSpawned && coverMonster.ani.frame >= 33) {
+    if (!player.lightOn) {
+      console.log("Defeat by Cover Monster");
+      defeatByMonster(jumpScare);
+    } else {
+      console.log("Reset Cover Monster");
+      resetCoverMonster();
+    }
+  }
+
+  if (lightMonsterSpawned && (totalSeconds - lastLightMonsterSpawnTime > 120)) {
+    if (!player.isHoldingBreath) {
+      console.log("Defeat by Light Monster");
+      defeatByMonster(jumpScare2);
+    } else {
+      console.log("Reset Light Monster");
+      resetLightMonster();
+    }
+  }
+
+  if (hideMonsterSpawned && (hideMonsterSprite.sprite.ani.frame > 10 &&  hideMonsterSprite.sprite.ani.frame < 22)){
+    if (!player.isHiding) {
+      console.log("Defeat by Hide Monster");
+      defeatByMonster(jumpScare3);
+    } 
+  }
   
 }
 
-function checkMonsterInteraction() {
-  // Check if the monster is close to the player
-  if (coverMonster.ani.frame >= 33 && spawned) {
-      if (!isHiding) {
-          // Player caught by the monster
-          coverMonster.ani.stop();
-          playJumpScareSound();
-          gameState = "lose";
-          console.log("Caught by the monster!");
-      }
-      else{
-        coverMonster.ani.frame = 0;
-        coverMonster.ani.stop();
-        coverMonster.x = -100;
-        
-        lightMonsterSprite.leave();
-        spawned = false;
-      }
+function defeatByMonster(monsterImage) {
+  clearEverything();
+  playJumpScareSound();
+  monsterThatKilled = monsterImage;
+  lost = true;
+}
+
+function resetCoverMonster() {
+  coverMonster.ani.frame = 0;
+  coverMonster.ani.stop();
+  coverMonster.x = -100;
+  coverMonsterSpawned = false;
+}
+
+function resetLightMonster() {
+  lightMonsterSprite.leave();
+  lightMonsterSpawned = false;
+  lightMonsterDistance = 5;
+  lightMonsterStage = 0;
+  port.write("distance:" +lightMonsterDistance);
+  //updateArduinoLights();
+}
+
+
+function connect() {
+  if (!port.opened()) {
+    port.open('Arduino', 9600);
+  } else {
+    port.close();
   }
 }
-function drawSprites(){
-  coverMonster = new Sprite(-100, this.canvas.h / 2, 50, 50);
-}
-let roomDrawn = false;
 
 function setup() {
   new Canvas();
   collider = 'none';
+  port = createSerial();
+
+  connectButton = createButton("Connect");
+  connectButton.position(10, 10);
+  connectButton.mousePressed(connect);
 
   titleCard = new Sprite();
   titleCard.collider = 'none';
@@ -499,7 +717,7 @@ function setup() {
 
   title = new Sprite();
 	title.img = 'assets/Title.png';
-  title.scale = canvas.w/5000;
+  title.scale = canvas.w/4500;
   title.x = canvas.w/2
   title.y = canvas.h/3
 
@@ -525,15 +743,22 @@ function draw() {
       break;
     case "playing":
       // Update game elements and check for game events
-      startButton.remove();
-      title.remove();
-      titleCard.remove();
       drawPlayingScreen();
       updateInGameTime();
+      serialEvent();
+      player.updateBreath(); // Update the player's breath status
       //displayInGameTime();
       //handlePlayerInput();
       //updateMonsters();
       //checkMonsterInteraction();
+      updateMonsters();
+      checkMonsterInteraction();
+      if(lost){
+        gameState = "lose";
+      }
+      /*if(win){
+        gameState = "win";
+      }*/
       break;
     case "win":
       displayWinScreen();
@@ -567,6 +792,9 @@ function keyPressed() {
     }
     console.log("Flashlight is on");
   }
+  if (key === 'B' || key === 'b') {
+    player.startHoldingBreath();
+  }
 }
 
 function keyReleased() {
@@ -576,28 +804,98 @@ function keyReleased() {
   }
   if (key === 'F' || key === 'f') {
     if(!isHiding){
-    player.reset();
+      player.reset();
     }
+  }
+  if (key === 'B' || key === 'b') {
+    player.stopHoldingBreath();
   }
 }
 
 function mousePressed() {
-  // Check if mouse is over the button and the button is pressed
-  if (startButton.mouse.presses()) {
-    startGame(); // Call the function to start the game
+  if (gameState === "start" && startButton.mouse.presses()) {
+      startGame();
   }
 }
 
+function serialEvent() {
+  let data = port.readUntil("\n").trim();  // Read data as line and trim it
+  if (data.startsWith("tilt")) {
+    let value = data.split(":")[1];
+    if (value === "1" && !isHiding) {
+      player.hide();  // Call player hide function
+      isHiding = true;
+    } else if (value === "0" && isHiding) {
+      player.reset();  // Reset the player
+      isHiding = false;
+    }
+  } else if (data.startsWith("button")) {
+    let value = data.split(":")[1];
+    if (value === "1" && !lightOn) {
+      player.flash();  // Turn on flashlight
+      lightOn = true;
+    } else if (value === "0" && lightOn) {
+      player.reset();  // Turn off flashlight
+      lightOn = false;
+    }
+  } else if (data.startsWith("breath")) {
+    let value = data.split(":")[1];
+    if (value === "1" && !player.isHoldingBreath) {
+      player.startHoldingBreath();  // Turn on flashlight
+    } else if (value === "0" && player.isHoldingBreath) {
+      player.stopHoldingBreath();  // Turn off flashlight
+    }
+  }
+}
+
+let screenExists = false;
 function displayWinScreen() {
   fill(255);
   textSize(32);
   text("You've survived the night!", 200, height / 2);
+  if(!screenExists){
+    screenExists = true;
+    confetti = new Sprite(canvas.w/2, canvas.h-100, 100, 100, 'none');
+    confetti.spriteSheet = confettiSheet;
+    animations = {
+      explode: { frameSize: [4096/8, 4096/8], frames: 63},
+    };
+    confetti.anis.frameDelay = 3;
+    confetti.addAnis(animations);
+    confetti.changeAni('explode');
+    confetti.scale.x *= 3;
+    confetti.scale.y *= 3;
+  }
 }
 
 function displayLoseScreen() {
-  room.remove();
+  //room.remove();
+  if (!screenExists) { // Create the jump scare screen only if it doesn't already exist
+    screenExists = true;
+    screen = new Sprite();
+    screen.collision = 'none';
+    screen.img = monsterThatKilled;
+    dead = new Sprite(canvas.w/2, canvas.h/1.5, canvas.w/500, canvas.h/500, 'none');
+    //dead.collision = 'none';
+    dead.img = deadScreen;
+  }
+  
   fill(255);
   textSize(32);
   text("Caught by the monster...", 200, height / 2);
+  
 }
 
+function clearEverything() {
+  room.remove();
+  player.sprite.remove();
+  coverMonster.remove();
+  lightMonsterSprite.sprite.remove();
+  bubbleSprites.forEach((bubble) => {
+        bubble.remove();
+  });
+  digitSprites.forEach((digit) => {
+    digit.remove();
+  });
+  colonSprite.remove();
+}
