@@ -373,6 +373,7 @@ async function playHideMonsterSound() {
   fmSynth.triggerAttackRelease("G4", "8n", now + 0.3);  // A second note for more complexity
 }
 
+
 async function playJumpScareSound() {
   await Tone.start(); // Make sure Tone.js audio context is initialized
 
@@ -431,6 +432,57 @@ async function playJumpScareSound() {
     vibrato.stop();
   }, 500); // Stop the noise shortly after it plays
 }
+
+// Setup the synthesizer for melody
+const melodySynth = new Tone.Synth({
+  oscillator: {
+    type: 'triangle'  // A soft, pleasant sound
+  },
+  envelope: {
+    attack: 0.05,
+    decay: 0.2,
+    sustain: 0.3,
+    release: 0.8,
+  }
+}).toDestination();
+
+// Add reverb for both synthesizers to share
+const reverb = new Tone.Reverb({
+  decay: 2.5,
+  wet: 0.5
+}).toDestination();
+
+melodySynth.connect(reverb);
+melodySynth.volume.value = -10;
+
+// Define the melody
+const notes = ['C5', 'E5', 'G5', 'C6'];
+let melody;
+
+// Function to play the winning sound
+function playWinningSound() {
+  // Ensure we start a new sequence each time to avoid stacking triggers
+  melody = new Tone.Sequence((time, note) => {
+    melodySynth.triggerAttackRelease(note, "8n", time);
+  }, notes, "4n");
+
+  melody.loop = false;  // Ensure the sequence does not loop
+  melody.start(0);
+  cheerSynth.triggerAttackRelease('8n', Tone.now() + notes.length * Tone.Time("4n").toSeconds());
+
+  // Start the transport if not already running
+  if (Tone.Transport.state !== 'started') {
+    Tone.Transport.start();
+  }
+
+  // Stop the Transport after the melody and cheer sound have played
+  Tone.Transport.scheduleOnce((time) => {
+    melody.dispose(); // Dispose of the sequence to prevent memory leaks
+    Tone.Transport.stop();
+  }, Tone.now() + notes.length * Tone.Time("4n").toSeconds() + 0.5);
+}
+
+
 let passMidnight = false;
 
 function updateInGameTime() {
@@ -478,7 +530,6 @@ function drawStartScreen() {
 
 function startGame() {
   gameState = "playing"; // Change game state to start the game
-  
 }
 
 function drawPlayingScreen() {
@@ -590,6 +641,7 @@ function updateMonsters() {
   }
   if(hours>=6 && passMidnight){
     clearEverything();
+    playWinningSound();
     gameState = "win";
   }
 }
