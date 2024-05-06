@@ -53,8 +53,8 @@ class Player {
       this.sprite.changeAni('idle');
 
       this.isHoldingBreath = false;
-      this.breathCapacity = 100; // Total breath the player can hold
-      this.currentBreath = 100; // Current breath remaining
+      this.breathCapacity = 50; // Total breath the player can hold
+      this.currentBreath = 50; // Current breath remaining
       this.breathDecreaseRate = .2; // Rate at which breath decreases per frame
   }
 
@@ -85,7 +85,7 @@ class Player {
 
   stopHoldingBreath() {
     this.isHoldingBreath = false;
-    this.sprite.changeAni('idle'); // Revert to idle animation
+    //this.sprite.changeAni('idle'); // Revert to idle animation
   }
 
   updateBreath() {
@@ -466,7 +466,7 @@ function updateDigitSprites() {
 }
 
 function drawStartScreen() {
-  background(0); // Set a background color for the start screen
+  background(10); // Set a background color for the start screen
   fill(255);
   textSize(48);
   textAlign(CENTER, CENTER);
@@ -478,7 +478,6 @@ function drawStartScreen() {
 
 function startGame() {
   gameState = "playing"; // Change game state to start the game
-  // Additional setup if needed when starting the game
   
 }
 
@@ -565,7 +564,7 @@ function updateMonsters() {
       spawnCoverMonster();
     }
   }
-  if (!hideMonsterSpawned && (totalSeconds - lastCoverMonsterSpawnTime) > 120) {
+  if (!hideMonsterSpawned && (totalSeconds - lastHideMonsterSpawnTime) > 120) {
     if(Math.random(200) <= 0.0008){
       spawnHideMonster();
     }
@@ -608,12 +607,12 @@ function spawnCoverMonster() {
 function spawnHideMonster() {
   console.log("Spawning Hide Monster");
   playHideMonsterSound();
+  hideMonsterSpawned = true;
   setTimeout(() => {
     hideMonsterSprite.enter();
     lastHideMonsterSpawnTime = totalSeconds;
-    hideMonsterSpawned = true;
     console.log("Hide Monster has entered the game");
-}, 5000);  // 10000 milliseconds = 10 seconds
+}, 4000);  // 10000 milliseconds = 10 seconds
 }
 
 function advanceLightMonster() {
@@ -656,7 +655,9 @@ function checkMonsterInteraction() {
     if (!player.isHiding) {
       console.log("Defeat by Hide Monster");
       defeatByMonster(jumpScare3);
-    } 
+    } else{
+      hideMonsterSpawned = false;
+    }
   }
   
 }
@@ -712,7 +713,7 @@ function setup() {
   startButton = new Sprite();
 	startButton.img = startButtonImg;
   startButton.scale = canvas.w/3500;
-  startButton.x = canvas.w/3
+  startButton.x = canvas.w/2
   startButton.y = canvas.h/1.5
 
   title = new Sprite();
@@ -852,7 +853,7 @@ let screenExists = false;
 function displayWinScreen() {
   fill(255);
   textSize(32);
-  text("You've survived the night!", 200, height / 2);
+  text("You've survived the night!", 200, height / 9);
   if(!screenExists){
     screenExists = true;
     confetti = new Sprite(canvas.w/2, canvas.h-100, 100, 100, 'none');
@@ -863,6 +864,7 @@ function displayWinScreen() {
     confetti.anis.frameDelay = 3;
     confetti.addAnis(animations);
     confetti.changeAni('explode');
+    confetti.ani.noLoop();
     confetti.scale.x *= 3;
     confetti.scale.y *= 3;
   }
@@ -882,7 +884,7 @@ function displayLoseScreen() {
   
   fill(255);
   textSize(32);
-  text("Caught by the monster...", 200, height / 2);
+  //text("Caught by the monster...", 200, height / 2);
   
 }
 
